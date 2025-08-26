@@ -1,0 +1,60 @@
+# 工作流的名称
+name: Sync Upstream Fork
+
+# 触发工作流的事件
+on:
+  # 允许你手动在 Actions 页面触发此工作流
+  workflow_dispatch:
+  
+  # 定时任务：使用 CRON 表达式，这里代表每小时执行一次
+  # '0 * * * *' = 每小时的第0分钟执行
+  # '0 0 * * *' = 每天的零点执行
+  schedule:
+    - cron: '0 0 * * *'
+
+# 定义一个或多个作业（job）
+jobs:
+  sync:
+    # 作业运行的环境
+    runs-on: ubuntu-latest
+
+    # 作业的步骤
+    steps:
+      # 第一步：检出（checkout）你的仓库代码
+      # 使用了别人写好的 action: actions/checkout@v3
+      - name: Checkout Fork
+        uses: actions/checkout@v3
+        with:
+          # 为了后续能够 push 代码，需要一个有写权限的 token
+          # GITHUB_TOKEN 是由 GitHub 自动提供的，你无需手动创建
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # 获取所有历史记录，以便进行 rebase 或 merge
+          fetch-depth: 0 
+
+      # 第二步：设置上游（Upstream）仓库并同步
+      - name: Sync with Upstream
+        run: |
+          # 设置 Git 的用户信息，这样提交记录会显示是由 action 完成的
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          # 添加原始仓库（上游仓库）的远程地址
+          # !!! 重要：将下面的 URL 替换为原始仓库的 URL !!!
+          git remote add upstream https://github.com/xingpingcn/enhanced-FaaS-in-China.git
+          
+          # 从上游仓库获取所有分支的最新内容
+          git fetch upstream
+          
+          # 切换到你想要同步的分支，通常是 main 或 master
+          # !!! 重要：如果你的默认分支不是 main，请修改为你的分支名 !!!
+          git checkout main
+          
+          # 将上游仓库的更新合并到你的分支
+          # 这里使用 rebase 模式，可以使你的提交历史更整洁。
+          # 如果你不想用 rebase，可以换成 'git merge upstream/main'
+          git rebase upstream/main
+          
+          # 将同步后的代码强制推送到你的 GitHub 仓库
+          # 因为 rebase 会改变历史，所以需要使用 --force
+          # 如果你用的是 merge，则可以只用 'git push'
+          git push origin main --force
